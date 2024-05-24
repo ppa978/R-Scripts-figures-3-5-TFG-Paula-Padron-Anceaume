@@ -1,0 +1,161 @@
+---
+title: "Immunophenotyping of lymphocyte subsets by flow cytometry in lung transplantation and association with humoral response: Anti-HLA and non-HLA antibody development"
+subtitle: "TFG Ciencias Biomédicas, UC 2023-24"
+author: "Paula Padrón Anceaume"
+date: "2024-06-10"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    collapsed: true
+    smooth_scroll: true
+    theme: journal
+    highlight: kate
+    df_print: paged
+    code_folding: show
+---
+## Figure 3: Frequency of positive pre-transplant non-HLA antibody reactions.
+```{r}
+library(readxl)
+library(ggplot2)
+library(ggpubr)
+
+# Load data
+NoHLA <- read_excel("Dataset_Figure3.xlsx")
+NoHLA <- as.data.frame(NoHLA)
+
+# Set AMR variable as a factor and set labels
+NoHLA$AMR <- as.factor(NoHLA$AMR)
+levels(NoHLA$AMR) <- c("No", "AMR")
+
+# Convert frequency to percentage and round to 2 decimal places
+NoHLA$Freq <- round(NoHLA$Freq * 100, 2)
+
+# Set the NoHLA variable as a factor with single levels
+NoHLA$NoHLA <- factor(NoHLA$NoHLA, levels = unique(NoHLA$NoHLA))
+
+# Function to darken colours
+darken <- function(color, factor = 1.4) {
+  rgb(t(col2rgb(color) / 255 * (1 / factor)), maxColorValue = 1)
+}
+
+# Generate the bubble plot with ggballoonplot
+f1 <- ggballoonplot(NoHLA, x = "AMR", y = "NoHLA", size = "Freq", fill = "Freq", color = "Freq",
+                    ggtheme = theme_bw()) +
+  scale_fill_gradientn(colors = alpha(c("blue", "green", "yellow"), 0.5),
+                       guide = guide_colorbar(barwidth = 1, barheight = 15)) +  # Adjust the size of the colour bar
+  scale_color_gradientn(colors = darken(c("blue", "green", "yellow")),
+                        guide = "none") +  # Use darker colours for the borders and remove the legend
+  theme(legend.position = "right",               # Move the legend to the right
+        legend.title = element_text(size = 10),  # Adjust size of leyend title
+        legend.text = element_text(size = 8),    # Adjust leyend text size
+        legend.key.size = unit(0.8, "cm")) +     # Adjust the size of the legend
+  guides(size = "none") +  # Remove size legend (bubbles)
+  geom_text(aes(label = Freq), vjust = -0.3, hjust = 1.8, size = 2)  # Adding data labels next to the bubbles
+
+# Display the graph
+print(f1)
+
+# Close the graphic device after finishing the generation of the chart
+dev.off()
+print(f1)
+```
+
+## Figure 4: Comparison of pre-transplant non-HLA antibodies between both groups of lung transplant recipients.
+```{r}
+library(readxl)
+library(ggstatsplot)
+library(ggplot2)
+
+NonHLA <- read_excel("Dataset_Figure4.xlsx")
+
+NonHLA <- as.data.frame(NonHLA)
+
+# Convert variables to factors
+NonHLA$AMR <- as.factor(NonHLA$AMR)
+
+# Generate the comparison plot with ggstatsplot::ggbetweenstats
+plot <- ggstatsplot::ggbetweenstats(
+  data = NonHLA,
+  x = AMR, # Grouping/independent variable
+  y = '# of non-HLA Panel 20', # Dependent variable
+  xlab = "AMR", # Label for X-axis
+  ylab = "# of non-HLA Panel 20", # Label for Y-axis
+  type = "np", # Non-parametric test
+  effsize.type = "g", # Type of effect estimator
+  conf.level = 0.99,
+  plot.type = "boxviolin", # Chart type: combination of boxplot and violin plot
+  outlier.tagging = TRUE, # Indicate outliers
+  outlier.coef = 1.5, # Coefficient to consider outliers following Tukey's rule
+  outlier.label.args = list(color = "red"), # Label colour of outliers
+  messages = FALSE, # Turn off messages
+  ggtheme = theme_bw(), # White background
+  title = "Non-HLA prior lung transplantation and risk of AMR without DSAs"
+)
+
+# Change graphic colours to blue and red
+plot <- plot + 
+  scale_fill_manual(values = c("0" = "blue", "1" = "red"))
+
+# Adjust the background and make the edges rounded
+plot <- plot + theme(
+  panel.background = element_rect(fill = "white", color = NA), # White background
+  plot.background = element_rect(fill = "white", color = NA), # Bbackground
+  plot.margin = margin(0.25, 0.5, 0.5, 0.25, "cm"), # Margin
+  panel.grid.major = element_line(size = 0.5, linetype = 'solid', color = "gray"), # Main grid lines
+  panel.grid.minor = element_line(size = 0.25, linetype = 'solid', color = "gray"), # Second grid lines
+  plot.title = element_text(hjust = 0.5, size = 12), # Centre and adjust the size of the title
+  plot.caption = element_text(hjust = 0.5) # Centre subtitle
+)
+
+# Change the colour of the dots (outliers)
+plot <- plot + 
+  scale_color_manual(values = c("0" = "blue", "1" = "red")) +
+  theme(legend.position = "none")  # Omit the legend 
+
+# Display the graph
+print(plot)
+```
+
+## Figure 5: ROC analysis for the number of pre-transplant non-HLA antibodies in predicting AMR without DSAs.
+```{r}
+library("pROC")
+library("readxl")
+
+# Read data
+dat <- read_excel("Dataset_Figure5.xlsx")
+
+# Ensure AMR is a factor
+dat$AMR <- as.factor(dat$AMR)
+
+# Calculate the ROC curve
+roc <- roc(dat$AMR, dat$Panel20, percent = TRUE)
+
+# Obtain AUC
+auc_val <- auc(roc)
+
+# Calculate the 95% confidence interval for the AUC
+ci_auc <- ci(roc)
+
+# Paint ROC curve
+plot(roc, col = "blue", main = paste("ROC Curve (AUC:", round(auc_val, 1), "%)"))
+
+# Add the 95% confidence interval to the graph
+ci_obj <- ci.se(roc, specificities = seq(0, 100, 5))  # Calculate the confidence interval
+plot(ci_obj, type = "shape", col = "lightblue", add = TRUE)  # Adds the confidence interval as a shadow
+
+# Calculate Youden index
+youden_index <- coords(roc, "best", best.method = "youden")
+
+# Indicate Youden index on the graph
+points(youden_index[1], youden_index[2], pch = 16, col = "red")
+text(youden_index[1], youden_index[2], labels = round(youden_index[1], 1), pos = 4, col = "red")  # Add the value to the chart
+
+# Show the legend with the AUC and the confidence interval
+legend("bottomright", 
+       legend = c(paste("AUC:", round(auc_val, 1), "% (", round(ci_auc[1], 1), "% - ", round(ci_auc[3], 1), "%)"), 
+                  paste("Youden's Index(%):", round(youden_index[1], 1))), 
+       col = c("blue", "red"), lty = c(1, NA), pch = c(NA, 16), cex = 0.8)
+```
+
